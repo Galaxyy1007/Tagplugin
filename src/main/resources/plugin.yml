@@ -1,0 +1,11 @@
+name: Tagplugin
+main: me.galaxy1007.tagplugin.Tagplugin
+version: 1.0
+api-version: 1.21
+commands:
+  tikkertje:
+    description: Start of stop het tikkertje spel
+    usage: /tikkertje [start|stop]
+  verwijderbordje:
+    description: verwijderd het bordje
+    usage: /<command>
