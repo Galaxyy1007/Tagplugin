@@ -1,248 +1,357 @@
 package me.galaxy1007.tagplugin;
 
-import org.bukkit.*;
+import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
+import org.bukkit.DyeColor;
+import org.bukkit.GameMode;
 import org.bukkit.block.Sign;
+import org.bukkit.block.sign.Side;
+import org.bukkit.block.sign.SignSide;
+import org.bukkit.event.block.SignChangeEvent;
+import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.block.BlockState;
+import org.bukkit.block.Block;
 import org.bukkit.command.Command;
-import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
+import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
-import org.bukkit.event.block.BlockBreakEvent;
-import org.bukkit.event.inventory.InventoryClickEvent;
-import org.bukkit.event.player.PlayerInteractEvent;
-import org.bukkit.event.block.SignChangeEvent;
-import org.bukkit.inventory.Inventory;
-import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
 
-public class Tagplugin extends JavaPlugin implements Listener, CommandExecutor {
+public class Tagplugin extends JavaPlugin implements Listener {
+    private TagLeaderboard leaderboard;
+    private List<Player> players;
+    private Player itPlayer;
+    private FileConfiguration config;
+    private long tagCooldownDuration;
+    private Map<Player, Long> tagCooldowns; // Declare the tagCooldowns variable here
 
-    private final Set<Player> players = new HashSet<>();
-    private final Map<Player, ItemStack[]> storedInventories = new HashMap<>();
-    private final Map<Player, ItemStack[]> storedArmor = new HashMap<>();
-    private Player firstPlayer;
-    private int gameDuration = 300; // 5 minuten
-    private double playerSpeed = 0.2; // Normale snelheid
-    private boolean gameRunning = false;
-    private Player tagger = null;
-    private final int maxPlayers = 10;
-    private Location signLocation = null;
 
     @Override
     public void onEnable() {
+        players = new ArrayList<>();
+        itPlayer = null;
+        saveDefaultConfig();
+        config = getConfig();
+        tagCooldowns = new HashMap<>();
         getServer().getPluginManager().registerEvents(this, this);
-        getCommand("tikkertje").setExecutor(this);
+
+        leaderboard = new TagLeaderboard();
     }
 
     @Override
     public void onDisable() {
-        resetGame();
+        players.clear();
+        leaderboard.clear();
     }
 
-    @EventHandler
-    public void onPlayerInteract(PlayerInteractEvent event) {
-        Player player = event.getPlayer();
-        ItemStack item = player.getInventory().getItemInMainHand();
+    @Override
+    public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+        if (command.getName().equalsIgnoreCase("starttag")) {
+            if (itPlayer != null) {
+                sender.sendMessage(ChatColor.RED + "The tag game is already running!");
+                return true;
+            }
 
-        if (item.getType() == Material.REDSTONE_TORCH && item.getItemMeta().getDisplayName().equals(ChatColor.RED + "Instellingen")) {
-            openGameSettingsMenu(player);
-            event.setCancelled(true);
+            if (sender.isOp()) {
+                startGame();
+            } else if (Bukkit.getOnlinePlayers().size() < 2) {
+                sender.sendMessage(ChatColor.RED + "There must be at least 2 players online to start the tag game.");
+                return true;
+            }
+            startGame();
+            sender.sendMessage(ChatColor.GREEN + "Starting the game...");
+            return true;
+        } else if (command.getName().equalsIgnoreCase("stoptag")) {
+            if (itPlayer == null) {
+                sender.sendMessage(ChatColor.RED + "The tag game is not currently running.");
+                return true;
+            }
+
+            stopGame();
+            sender.sendMessage(ChatColor.GREEN + "The tag game has been stopped.");
+            return true;
+        } else if (command.getName().equalsIgnoreCase("tagleaderboard")) {
+            if (itPlayer == null) {
+                sender.sendMessage(ChatColor.RED + "There is no game currently running.");
+                return true;
+            }
+
+            leaderboard.sendLeaderboard(sender);
+            return true;
+        } else if (command.getName().equalsIgnoreCase("leaderboard")) {
+            if (itPlayer == null) {
+                sender.sendMessage(ChatColor.RED + "There is no game currently running.");
+                return true;
+            }
+
+            leaderboard.sendTopTaggedPlayers(sender, 5);
+            return true;
         }
 
-        if (event.getClickedBlock() != null && event.getClickedBlock().getState() instanceof Sign) {
-            Sign sign = (Sign) event.getClickedBlock().getState();
+        return false;
+    }
+    @EventHandler
+    public void onSignChange(SignChangeEvent event) {
+        if (event.getLine(0).equalsIgnoreCase("[Minigame]") && event.getLine(1).equalsIgnoreCase("Tikkertje")) {
+            if (event.getBlock().getState() instanceof Sign) {
+                Sign sign = (Sign) event.getBlock().getState();
 
-            if (ChatColor.stripColor(sign.getLine(0)).equalsIgnoreCase("[Minigame]") &&
-                    ChatColor.stripColor(sign.getLine(1)).equalsIgnoreCase("Tikkertje")) {
+                // Gebruik de FRONT zijde van het bord (voorzijde)
+                sign.getSide(Side.FRONT).setLine(0, ChatColor.BLUE + "" + ChatColor.BOLD + "[Minigame]");
+                sign.getSide(Side.FRONT).setLine(1, ChatColor.YELLOW + "" + ChatColor.BOLD + "Tikkertje");
 
-                if (!players.contains(player) && players.size() < maxPlayers) {
-                    players.add(player);
-                    storePlayerInventory(player);
-                    giveGameItem(player);
-                    player.sendMessage(ChatColor.GREEN + "Je hebt je ingeschreven voor tikkertje!");
+                sign.update(); // Slaat de wijzigingen op
 
-                    if (players.size() == 1) {
-                        firstPlayer = player;
-                    }
+                event.getPlayer().sendMessage(ChatColor.GREEN + "Join sign created successfully!");
+            }
+        }
+    }
+    @EventHandler
+    public void onSignEdit(SignChangeEvent event) {
+        if (event.getBlock().getState() instanceof Sign) {
+            Sign sign = (Sign) event.getBlock().getState();
 
-                    updateSign();
-                } else {
-                    player.sendMessage(ChatColor.RED + "Het spel zit vol!");
-                }
+            // Check of dit bord al een Minigame-bord is
+            String line1 = ChatColor.stripColor(sign.getSide(Side.BACK).getLine(0));
+            String line2 = ChatColor.stripColor(sign.getSide(Side.BACK).getLine(1));
 
+            if (line1.equalsIgnoreCase("[Minigame]")) {
                 event.setCancelled(true);
+                event.getPlayer().sendMessage(ChatColor.RED + "You cannot edit this sign!");
+            } else if (line2.equalsIgnoreCase("Tikkertje")) {
+                event.setCancelled(true);
+                event.getPlayer().sendMessage(ChatColor.RED + "You cannot edit this sign!");
             }
         }
     }
 
-    private void storePlayerInventory(Player player) {
-        storedInventories.put(player, player.getInventory().getContents());
-        storedArmor.put(player, player.getInventory().getArmorContents());
-        player.getInventory().clear();
-        player.getInventory().setArmorContents(null);
-    }
+    @EventHandler
+    public void onPlayerInteract(PlayerInteractEvent event) {
+        if (event.getClickedBlock() != null && event.getClickedBlock().getState() instanceof Sign) {
+            Sign sign = (Sign) event.getClickedBlock().getState();
 
-    private void giveGameItem(Player player) {
-        ItemStack torch = new ItemStack(Material.REDSTONE_TORCH);
-        ItemMeta meta = torch.getItemMeta();
-        meta.setDisplayName(ChatColor.RED + "Instellingen");
-        torch.setItemMeta(meta);
-        player.getInventory().addItem(torch);
-    }
+            String line1 = sign.getSide(Side.BACK).getLine(0);
+            String line2 = sign.getSide(Side.BACK).getLine(1);
 
-    private void updateSign() {
-        if (signLocation != null && signLocation.getBlock().getState() instanceof Sign) {
-            Sign sign = (Sign) signLocation.getBlock().getState();
-            sign.setLine(0, ChatColor.DARK_BLUE + "[Minigame]");
-            sign.setLine(1, ChatColor.GREEN + "Tikkertje");
-            sign.setLine(2, ChatColor.WHITE + "" + ChatColor.BOLD + players.size() + " / " + maxPlayers);
-            sign.update(true);
+            if (ChatColor.stripColor(line1).equalsIgnoreCase("[Minigame]") &&
+                    ChatColor.stripColor(line2).equalsIgnoreCase("Tikkertje")) {
+
+                Player player = event.getPlayer();
+                if (!players.contains(player)) {
+                    players.add(player);
+                    player.sendMessage(ChatColor.GREEN + "You have joined the tag game!");
+                } else {
+                    player.sendMessage(ChatColor.RED + "You are already in the game!");
+                }
+            }
+            Player player = event.getPlayer();
+            if (player.getGameMode().equals(GameMode.SURVIVAL) || player.getGameMode().equals(GameMode.ADVENTURE)) {
+                event.setCancelled(true);
+            } else {
+                event.setCancelled(false);
+            }
         }
     }
 
-    public void openGameSettingsMenu(Player player) {
-        Inventory inv = Bukkit.createInventory(null, 9, "Tikkertje Instellingen");
-        inv.setItem(0, createItem("Snelheid verhogen", Material.FEATHER));
-        inv.setItem(1, createItem("Duur aanpassen", Material.CLOCK));
-        inv.setItem(3, createItem("Reset waarden", Material.BARRIER));
-        inv.setItem(7, createItem("Stop het spel", Material.REDSTONE));
-        inv.setItem(8, createItem("Start het spel", Material.REDSTONE_TORCH));
 
-        player.openInventory(inv);
-    }
+    private void startCountdown() {
+        new BukkitRunnable() {
+            int countdown = 10;
 
-    private ItemStack createItem(String name, Material material) {
-        ItemStack item = new ItemStack(material);
-        ItemMeta meta = item.getItemMeta();
-        meta.setDisplayName(ChatColor.YELLOW + name);
-        item.setItemMeta(meta);
-        return item;
+            @Override
+            public void run() {
+                if (countdown <= 0) {
+                    startGame();
+                    cancel();
+                    return;
+                }
+
+                for (Player player : Bukkit.getOnlinePlayers()) {
+                    player.sendTitle(ChatColor.RED + "Starting in", ChatColor.YELLOW + "" + countdown + " seconds", 5, 20, 5);
+                }
+                countdown--;
+            }
+        }.runTaskTimer(this, 0, 20); // 20 ticks is een seconde
     }
 
     @EventHandler
-    public void onInventoryClick(InventoryClickEvent event) {
-        if (event.getView().getTitle().equals("Tikkertje Instellingen") && event.getWhoClicked() instanceof Player) {
-            Player player = (Player) event.getWhoClicked();
-            event.setCancelled(true);
+    public void onPlayerJoin(PlayerJoinEvent event) {
+        Player player = event.getPlayer();
 
-            if (event.getCurrentItem() != null) {
-                String itemName = event.getCurrentItem().getItemMeta().getDisplayName();
-                if (itemName.contains("Snelheid verhogen")) {
-                    playerSpeed = 0.3;
-                    player.sendMessage(ChatColor.GREEN + "Speler snelheid verhoogd!");
-                } else if (itemName.contains("Duur aanpassen")) {
-                    gameDuration = 300;
-                    player.sendMessage(ChatColor.GREEN + "Spel duurt nu 5 minuten.");
-                } else if (itemName.contains("Reset waarden")) {
-                    playerSpeed = 0.2;
-                    gameDuration = 300;
-                    player.sendMessage(ChatColor.GREEN + "Waarden teruggezet naar standaard.");
-                } else if (itemName.contains("Stop het spel")) {
-                    resetGame();
-                    player.closeInventory();
-                    Bukkit.broadcastMessage(ChatColor.RED + "Het spel is gestopt!");
-                } else if (itemName.contains("Start het spel")) {
-                    startGame();
-                    player.closeInventory();
+        if (itPlayer != null) {
+            players.add(player);
+            player.setPlayerListName(player.getName());
+
+            String gameStartMessage = config.getString("game_start_message");
+            if (gameStartMessage != null && !gameStartMessage.isEmpty()) {
+                player.sendMessage(ChatColor.translateAlternateColorCodes('&', gameStartMessage));
+            } else {
+                player.sendMessage(ChatColor.GREEN + "The tag game has started!");
+            }
+        }
+    }
+
+    @EventHandler
+    public void onPlayerQuit(PlayerQuitEvent event) {
+        Player player = event.getPlayer();
+
+        players.remove(player);
+
+        if (player == itPlayer) {
+            itPlayer = null;
+            if (players.size() > 0) {
+                selectNewItPlayer();
+            }
+        }
+    }
+
+    @EventHandler
+    public void onPlayerDamage(EntityDamageByEntityEvent event) {
+        if (event.getEntity() instanceof Player && event.getDamager() instanceof Player) {
+            Player tagged = (Player) event.getEntity();
+            Player tagger = (Player) event.getDamager();
+
+            if (itPlayer == tagger) {
+                if (tagCooldowns.containsKey(tagger)) {
+                    long lastTagTime = tagCooldowns.get(tagger);
+                    long currentTime = System.currentTimeMillis();
+                    config = getConfig(); // Load the config
+                    tagCooldownDuration = config.getLong("tag_cooldown", 30) * 1000;
+
+                    long cooldownTime = tagCooldownDuration;
+
+                    if (currentTime - lastTagTime < cooldownTime) {
+                        tagger.sendMessage(ChatColor.RED + "You must wait before tagging another player.");
+                        return;
+                    }
                 }
+
+                if (tagCooldowns.containsKey(tagged)) {
+                    long lastTagTime = tagCooldowns.get(tagged);
+                    long currentTime = System.currentTimeMillis();
+                    config = getConfig();
+                    tagCooldownDuration = config.getLong("tag_cooldown", 30) * 1000;
+
+                    long cooldownTime = tagCooldownDuration;
+
+                    if (currentTime - lastTagTime < cooldownTime) {
+                        tagger.sendMessage(ChatColor.RED + "This player cannot be tagged yet. Please wait.");
+                        return;
+                    }
+                }
+
+                tagPlayer(tagged);
+                tagCooldowns.put(tagger, System.currentTimeMillis());
+                tagCooldowns.put(tagged, System.currentTimeMillis());
+
+                String tagMessage = config.getString("tag_message");
+                if (tagMessage != null && !tagMessage.isEmpty()) {
+                    tagged.sendMessage(ChatColor.translateAlternateColorCodes('&', tagMessage.replace("{tagged}", tagged.getName())));
+                } else {
+                    tagged.sendMessage(ChatColor.RED + "You got tagged!");
+                }
+
+                String taggerMessage = config.getString("tagger_message");
+                if (taggerMessage != null && !taggerMessage.isEmpty()) {
+                    tagger.sendMessage(ChatColor.translateAlternateColorCodes('&', taggerMessage.replace("{tagged}", tagged.getName())));
+                } else {
+                    tagger.sendMessage(ChatColor.GREEN + "You tagged " + tagged.getName() + "!");
+                }
+
+                String consoleMessage = config.getString("console_message");
+                if (consoleMessage != null && !consoleMessage.isEmpty()) {
+                    consoleMessage = consoleMessage.replace("{tagger}", tagger.getName()).replace("{tagged}", tagged.getName());
+                    getServer().getConsoleSender().sendMessage(ChatColor.translateAlternateColorCodes('&', consoleMessage));
+                }
+                String globalMessage = config.getString("global_message");
+                if (globalMessage != null && !globalMessage.isEmpty()) {
+                    globalMessage = globalMessage.replace("{tagger}", tagger.getName()).replace("{tagged}", tagged.getName());
+                    for (Player player : Bukkit.getOnlinePlayers()) {
+                        if (player != tagger && player != tagged) {
+                            player.sendMessage(ChatColor.translateAlternateColorCodes('&', globalMessage));
+                        }
+                    }
+                }
+
+                if (tagger != tagged) {
+                    leaderboard.incrementTagCount(tagger.getName());
+                }
+
+                leaderboard.sendLeaderboard(Bukkit.getServer().getConsoleSender());
             }
         }
     }
 
     private void startGame() {
-        if (players.size() >= 2) {
-            gameRunning = true;
-            Bukkit.broadcastMessage(ChatColor.YELLOW + "Tikkertje begint over 10 seconden!");
-
-            new BukkitRunnable() {
-                int countdown = 10;
-
-                @Override
-                public void run() {
-                    if (countdown > 0) {
-                        for (Player player : players) {
-                            player.sendTitle(ChatColor.RED + "Start over", ChatColor.WHITE + "" + countdown + " seconden", 5, 20, 5);
-                        }
-                        countdown--;
-                    } else {
-                        cancel();
-                    }
-                }
-            }.runTaskTimer(this, 0, 20);
-        } else {
-            firstPlayer.sendMessage(ChatColor.RED + "Minimaal 2 spelers nodig!");
-        }
-    }
-
-    private void resetGame() {
-        gameRunning = false;
-        for (Player player : players) {
-            if (storedInventories.containsKey(player)) {
-                player.getInventory().setContents(storedInventories.get(player));
-                player.getInventory().setArmorContents(storedArmor.get(player));
-            }
-        }
         players.clear();
-        tagger = null;
-        firstPlayer = null;
-        updateSign();
+        players.addAll(Bukkit.getOnlinePlayers());
+
+        for (Player player : players) {
+            player.setPlayerListName(player.getName());
+
+            String gameStartMessage = config.getString("game_start_message");
+            if (gameStartMessage != null && !gameStartMessage.isEmpty()) {
+                player.sendMessage(ChatColor.translateAlternateColorCodes('&', gameStartMessage));
+            } else {
+                player.sendMessage(ChatColor.GREEN + "The tag game has started!");
+            }
+        }
+
+        selectNewItPlayer();
+    }
+    private void stopGame() {
+        for (Player player : players) {
+            player.setPlayerListName(player.getName());
+        }
+
+        players.clear();
+        itPlayer = null;
+        leaderboard.clear();
     }
 
-    @EventHandler
-    public void onBlockBreak(BlockBreakEvent event) {
-        if (event.getBlock().getState() instanceof Sign) {
-            Player player = event.getPlayer();
-            if (!gameRunning || players.isEmpty()) {
-                // Als het spel niet bezig is of er geen spelers zijn, kan het bord altijd gebroken worden
-                event.setCancelled(false);
-                return;
-            }
-                if (player.getGameMode() == GameMode.CREATIVE) {
-                    player.sendMessage(ChatColor.RED + "Bordje verwijderd! Het spel is gereset.");
-                    resetGame();
+    private void selectNewItPlayer() {
+        Random random = new Random();
+        int index = random.nextInt(players.size());
+
+        itPlayer = players.get(index);
+
+        for (Player player : players) {
+            if (player == itPlayer) {
+                player.setPlayerListName(ChatColor.RED + player.getName());
+
+                String tagMessage = config.getString("tag_message");
+                if (tagMessage != null && !tagMessage.isEmpty()) {
+                    player.sendMessage(ChatColor.translateAlternateColorCodes('&', tagMessage.replace("{tagged}", player.getName())));
                 } else {
-                    event.setCancelled(true);
-                    player.sendMessage(ChatColor.RED + "Je moet in Creative zijn om dit bordje te breken!");
+                    player.sendMessage(ChatColor.RED + "You got tagged!");
                 }
+            } else {
+                player.setPlayerListName(player.getName());
             }
         }
+    }
 
-    @Override
-    public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        if (label.equalsIgnoreCase("tikkertje") && args.length > 0 && args[0].equalsIgnoreCase("stop")) {
-            resetGame();
-            Bukkit.broadcastMessage(ChatColor.RED + "Het spel is geforceerd gestopt door een operator.");
-            return true;
+    private void tagPlayer(Player tagger) {
+        if (tagger == itPlayer) {
+            return;
         }
 
-        if (label.equalsIgnoreCase("verwijderbordje") && sender instanceof Player) {
-            Player player = (Player) sender;
-            Location playerLoc = player.getLocation();
-            int radius = 3;
+        itPlayer.setPlayerListName(itPlayer.getName());
+        tagger.setPlayerListName(ChatColor.RED + tagger.getName());
 
-            for (int x = -radius; x <= radius; x++) {
-                for (int y = -radius; y <= radius; y++) {
-                    for (int z = -radius; z <= radius; z++) {
-                        Location checkLoc = playerLoc.clone().add(x, y, z);
-                        if (checkLoc.getBlock().getState() instanceof Sign) {
-                            checkLoc.getBlock().setType(Material.AIR);
-                            player.sendMessage(ChatColor.GREEN + "Het dichtstbijzijnde bordje is verwijderd!");
-                            return true;
-                        }
-                    }
-                }
-            }
-            player.sendMessage(ChatColor.RED + "Geen bordje gevonden binnen 3 blokken!");
-            return true;
-        }
-        return false;
-
-        
+        itPlayer = tagger;
     }
 }
 

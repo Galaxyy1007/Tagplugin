@@ -3,9 +3,14 @@ main: me.galaxy1007.tagplugin.Tagplugin
 version: 1.0
 api-version: 1.21
 commands:
-  tikkertje:
-    description: Start of stop het tikkertje spel
-    usage: /tikkertje [start|stop]
-  verwijderbordje:
-    description: verwijderd het bordje
-    usage: /<command>
+  starttag:
+    description: Start the tag game
+    usage: /starttag
+    permission: tagplugin.start
+  stoptag:
+    description: Stop the tag game
+    usage: /stoptag
+    permission: tagplugin.stop
+  leaderboard:
+    description: Display the top 5 (if there are 5) most tagged players
+    usage: /leaderboard

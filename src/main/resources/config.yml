@@ -1,0 +1,12 @@
+# Message when you get tagged
+tag_message: "&cYou got tagged!"
+# Message when you tag a player
+tagger_message: "&aYou tagged {tagged}!"
+# Message in the console with who tagged who
+console_message: "&7{tagger} tagged {tagged}!"
+# Global server message for other players
+global_message: "&6{tagger} tagged {tagged}!"
+# Cooldown on the tag
+tag_cooldown: 30
+# Message when the game starts
+game_start_message: "&aThe tag game has started!"
