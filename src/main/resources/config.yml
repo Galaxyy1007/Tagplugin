@@ -6,7 +6,7 @@ tagger_message: "&aYou tagged {tagged}!"
 console_message: "&7{tagger} tagged {tagged}!"
 # Global server message for other players
 global_message: "&6{tagger} tagged {tagged}!"
-# Cooldown on the tag
-tag_cooldown: 30
+# Cooldown on the tag, default is 5 seconds
+tag_cooldown: 5
 # Message when the game starts
 game_start_message: "&aThe tag game has started!"

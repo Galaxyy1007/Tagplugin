@@ -33,7 +33,7 @@
                 <artifactId>maven-jar-plugin</artifactId>
                 <version>3.3.0</version>
                 <configuration>
-                    <outputDirectory>C:\Users\mtdek\Desktop\Minecraft server 1.21.4\plugins</outputDirectory>
+                    <outputDirectory>C:\Users\Gebruiker\Dropbox\pc\Desktop\Minecraft 1.21.4 server\plugins</outputDirectory>
                 </configuration>
             </plugin>
         </plugins>

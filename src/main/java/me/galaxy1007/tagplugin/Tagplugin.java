@@ -1,15 +1,15 @@
 package me.galaxy1007.tagplugin;
 
-import org.bukkit.Bukkit;
-import org.bukkit.ChatColor;
-import org.bukkit.DyeColor;
-import org.bukkit.GameMode;
+import net.md_5.bungee.api.ChatMessageType;
+import net.md_5.bungee.api.chat.TextComponent;
+import org.bukkit.*;
 import org.bukkit.block.Sign;
 import org.bukkit.block.sign.Side;
 import org.bukkit.block.sign.SignSide;
+import org.bukkit.event.block.Action;
+import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.SignChangeEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
-import org.bukkit.block.BlockState;
 import org.bukkit.block.Block;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
@@ -30,7 +30,6 @@ import java.util.Map;
 import java.util.Random;
 
 public class Tagplugin extends JavaPlugin implements Listener {
-    private TagLeaderboard leaderboard;
     private List<Player> players;
     private Player itPlayer;
     private FileConfiguration config;
@@ -46,14 +45,13 @@ public class Tagplugin extends JavaPlugin implements Listener {
         config = getConfig();
         tagCooldowns = new HashMap<>();
         getServer().getPluginManager().registerEvents(this, this);
+        getCommand("removesign").setExecutor(this);
 
-        leaderboard = new TagLeaderboard();
     }
 
     @Override
     public void onDisable() {
         players.clear();
-        leaderboard.clear();
     }
 
     @Override
@@ -65,7 +63,7 @@ public class Tagplugin extends JavaPlugin implements Listener {
             }
 
             if (sender.isOp()) {
-                startGame();
+                startCountdown();
             } else if (Bukkit.getOnlinePlayers().size() < 2) {
                 sender.sendMessage(ChatColor.RED + "There must be at least 2 players online to start the tag game.");
                 return true;
@@ -88,7 +86,6 @@ public class Tagplugin extends JavaPlugin implements Listener {
                 return true;
             }
 
-            leaderboard.sendLeaderboard(sender);
             return true;
         } else if (command.getName().equalsIgnoreCase("leaderboard")) {
             if (itPlayer == null) {
@@ -96,76 +93,75 @@ public class Tagplugin extends JavaPlugin implements Listener {
                 return true;
             }
 
-            leaderboard.sendTopTaggedPlayers(sender, 5);
             return true;
-        }
+        } else if (command.getName().equalsIgnoreCase("removesign")) {
+                if (!(sender instanceof Player)) {
+                    sender.sendMessage(ChatColor.RED + "Only players can use this command!");
+                    return true;
+                }
 
-        return false;
-    }
+                Player player = (Player) sender;
+                Block targetBlock = player.getTargetBlockExact(3);
+                if (targetBlock != null && targetBlock.getState() instanceof Sign) {
+                    targetBlock.setType(Material.AIR);
+                    player.spigot().sendMessage(ChatMessageType.ACTION_BAR, new TextComponent(ChatColor.GREEN + "Sign removed successfully!"));
+                } else {
+                    player.spigot().sendMessage(ChatMessageType.ACTION_BAR, new TextComponent(ChatColor.RED + "No sign found within 3 blocks radius!"));
+                }
+                return true;
+            }
+            return false;
+        }
     @EventHandler
     public void onSignChange(SignChangeEvent event) {
         if (event.getLine(0).equalsIgnoreCase("[Minigame]") && event.getLine(1).equalsIgnoreCase("Tikkertje")) {
-            if (event.getBlock().getState() instanceof Sign) {
-                Sign sign = (Sign) event.getBlock().getState();
-
-                // Gebruik de FRONT zijde van het bord (voorzijde)
-                sign.getSide(Side.FRONT).setLine(0, ChatColor.BLUE + "" + ChatColor.BOLD + "[Minigame]");
-                sign.getSide(Side.FRONT).setLine(1, ChatColor.YELLOW + "" + ChatColor.BOLD + "Tikkertje");
-
-                sign.update(); // Slaat de wijzigingen op
-
-                event.getPlayer().sendMessage(ChatColor.GREEN + "Join sign created successfully!");
-            }
-        }
-    }
-    @EventHandler
-    public void onSignEdit(SignChangeEvent event) {
-        if (event.getBlock().getState() instanceof Sign) {
             Sign sign = (Sign) event.getBlock().getState();
+            SignSide front = sign.getSide(Side.FRONT);
 
-            // Check of dit bord al een Minigame-bord is
-            String line1 = ChatColor.stripColor(sign.getSide(Side.BACK).getLine(0));
-            String line2 = ChatColor.stripColor(sign.getSide(Side.BACK).getLine(1));
+            front.setLine(0, ChatColor.BLUE + "" + ChatColor.BOLD + "[Minigame]");
+            front.setLine(1, ChatColor.YELLOW + "" + ChatColor.BOLD + "Tikkertje");
 
-            if (line1.equalsIgnoreCase("[Minigame]")) {
-                event.setCancelled(true);
-                event.getPlayer().sendMessage(ChatColor.RED + "You cannot edit this sign!");
-            } else if (line2.equalsIgnoreCase("Tikkertje")) {
-                event.setCancelled(true);
-                event.getPlayer().sendMessage(ChatColor.RED + "You cannot edit this sign!");
-            }
+            sign.update();
+            event.getPlayer().spigot().sendMessage(ChatMessageType.ACTION_BAR, new TextComponent(ChatColor.GREEN + "Join sign created successfully!"));
         }
     }
-
     @EventHandler
     public void onPlayerInteract(PlayerInteractEvent event) {
-        if (event.getClickedBlock() != null && event.getClickedBlock().getState() instanceof Sign) {
-            Sign sign = (Sign) event.getClickedBlock().getState();
+        if (event.getAction() == Action.RIGHT_CLICK_BLOCK && event.getClickedBlock() != null) {
+            Block block = event.getClickedBlock();
+            if (block.getState() instanceof Sign) {
+                Sign sign = (Sign) block.getState();
+                SignSide front = sign.getSide(Side.FRONT);
 
-            String line1 = sign.getSide(Side.BACK).getLine(0);
-            String line2 = sign.getSide(Side.BACK).getLine(1);
+                String line1 = ChatColor.stripColor(front.getLine(0));
+                String line2 = ChatColor.stripColor(front.getLine(1));
 
-            if (ChatColor.stripColor(line1).equalsIgnoreCase("[Minigame]") &&
-                    ChatColor.stripColor(line2).equalsIgnoreCase("Tikkertje")) {
-
-                Player player = event.getPlayer();
-                if (!players.contains(player)) {
-                    players.add(player);
-                    player.sendMessage(ChatColor.GREEN + "You have joined the tag game!");
-                } else {
-                    player.sendMessage(ChatColor.RED + "You are already in the game!");
+                if (line1.equalsIgnoreCase("[Minigame]") && line2.equalsIgnoreCase("Tikkertje")) {
+                    event.setCancelled(true);
+                    Player player = event.getPlayer();
+                    player.performCommand("starttag");
+                    sign.update(true, true);
                 }
-            }
-            Player player = event.getPlayer();
-            if (player.getGameMode().equals(GameMode.SURVIVAL) || player.getGameMode().equals(GameMode.ADVENTURE)) {
-                event.setCancelled(true);
-            } else {
-                event.setCancelled(false);
             }
         }
     }
+    @EventHandler
+    public void onBlockBreak(BlockBreakEvent event) {
+        Block block = event.getBlock();
+        if (block.getState() instanceof Sign) {
+            Sign sign = (Sign) block.getState();
+            SignSide front = sign.getSide(Side.FRONT);
 
+            String line1 = ChatColor.stripColor(front.getLine(0));
+            String line2 = ChatColor.stripColor(front.getLine(1));
 
+            if (line1.equalsIgnoreCase("[Minigame]") && line2.equalsIgnoreCase("Tikkertje")) {
+                event.setCancelled(true);
+                event.getPlayer().sendMessage(ChatColor.RED + "You cannot break this sign!");
+                sign.update(true, true);
+            }
+        }
+    }
     private void startCountdown() {
         new BukkitRunnable() {
             int countdown = 10;
@@ -196,9 +192,9 @@ public class Tagplugin extends JavaPlugin implements Listener {
 
             String gameStartMessage = config.getString("game_start_message");
             if (gameStartMessage != null && !gameStartMessage.isEmpty()) {
-                player.sendMessage(ChatColor.translateAlternateColorCodes('&', gameStartMessage));
+                player.spigot().sendMessage(ChatMessageType.ACTION_BAR, new TextComponent(ChatColor.translateAlternateColorCodes('&', gameStartMessage)));
             } else {
-                player.sendMessage(ChatColor.GREEN + "The tag game has started!");
+                player.spigot().sendMessage(ChatMessageType.ACTION_BAR, new TextComponent(ChatColor.GREEN + "The tag game has started!"));
             }
         }
     }
@@ -228,7 +224,7 @@ public class Tagplugin extends JavaPlugin implements Listener {
                     long lastTagTime = tagCooldowns.get(tagger);
                     long currentTime = System.currentTimeMillis();
                     config = getConfig(); // Load the config
-                    tagCooldownDuration = config.getLong("tag_cooldown", 30) * 1000;
+                    tagCooldownDuration = config.getLong("tag_cooldown", 5) * 1000;
 
                     long cooldownTime = tagCooldownDuration;
 
@@ -258,16 +254,16 @@ public class Tagplugin extends JavaPlugin implements Listener {
 
                 String tagMessage = config.getString("tag_message");
                 if (tagMessage != null && !tagMessage.isEmpty()) {
-                    tagged.sendMessage(ChatColor.translateAlternateColorCodes('&', tagMessage.replace("{tagged}", tagged.getName())));
+                    tagged.spigot().sendMessage(ChatMessageType.ACTION_BAR, new TextComponent(ChatColor.translateAlternateColorCodes('&', tagMessage.replace("{tagged}", tagged.getName()))));
                 } else {
-                    tagged.sendMessage(ChatColor.RED + "You got tagged!");
+                    tagged.spigot().sendMessage(ChatMessageType.ACTION_BAR, new TextComponent(ChatColor.RED + "You got tagged!"));
                 }
 
                 String taggerMessage = config.getString("tagger_message");
                 if (taggerMessage != null && !taggerMessage.isEmpty()) {
-                    tagger.sendMessage(ChatColor.translateAlternateColorCodes('&', taggerMessage.replace("{tagged}", tagged.getName())));
+                    tagger.spigot().sendMessage(ChatMessageType.ACTION_BAR, new TextComponent(ChatColor.translateAlternateColorCodes('&', taggerMessage.replace("{tagged}", tagged.getName()))));
                 } else {
-                    tagger.sendMessage(ChatColor.GREEN + "You tagged " + tagged.getName() + "!");
+                    tagger.spigot().sendMessage(ChatMessageType.ACTION_BAR, new TextComponent(ChatColor.GREEN + "You tagged " + tagged.getName() + "!"));
                 }
 
                 String consoleMessage = config.getString("console_message");
@@ -284,12 +280,6 @@ public class Tagplugin extends JavaPlugin implements Listener {
                         }
                     }
                 }
-
-                if (tagger != tagged) {
-                    leaderboard.incrementTagCount(tagger.getName());
-                }
-
-                leaderboard.sendLeaderboard(Bukkit.getServer().getConsoleSender());
             }
         }
     }
@@ -318,7 +308,6 @@ public class Tagplugin extends JavaPlugin implements Listener {
 
         players.clear();
         itPlayer = null;
-        leaderboard.clear();
     }
 
     private void selectNewItPlayer() {

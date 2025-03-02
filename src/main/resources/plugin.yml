@@ -14,3 +14,6 @@ commands:
   leaderboard:
     description: Display the top 5 (if there are 5) most tagged players
     usage: /leaderboard
+  removesign:
+    description: deletes the sign wtihin 1 block radius
+    usage: /removesign
