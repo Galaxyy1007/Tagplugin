@@ -68,7 +68,6 @@ public class Tagplugin extends JavaPlugin implements Listener {
                 sender.sendMessage(ChatColor.RED + "There must be at least 2 players online to start the tag game.");
                 return true;
             }
-            startGame();
             sender.sendMessage(ChatColor.GREEN + "Starting the game...");
             return true;
         } else if (command.getName().equalsIgnoreCase("stoptag")) {
@@ -79,20 +78,6 @@ public class Tagplugin extends JavaPlugin implements Listener {
 
             stopGame();
             sender.sendMessage(ChatColor.GREEN + "The tag game has been stopped.");
-            return true;
-        } else if (command.getName().equalsIgnoreCase("tagleaderboard")) {
-            if (itPlayer == null) {
-                sender.sendMessage(ChatColor.RED + "There is no game currently running.");
-                return true;
-            }
-
-            return true;
-        } else if (command.getName().equalsIgnoreCase("leaderboard")) {
-            if (itPlayer == null) {
-                sender.sendMessage(ChatColor.RED + "There is no game currently running.");
-                return true;
-            }
-
             return true;
         } else if (command.getName().equalsIgnoreCase("removesign")) {
                 if (!(sender instanceof Player)) {
@@ -229,7 +214,7 @@ public class Tagplugin extends JavaPlugin implements Listener {
                     long cooldownTime = tagCooldownDuration;
 
                     if (currentTime - lastTagTime < cooldownTime) {
-                        tagger.sendMessage(ChatColor.RED + "You must wait before tagging another player.");
+                        tagger.sendMessage(ChatColor.RED + "You are on " + cooldownTime + " seconds cooldown!");
                         return;
                     }
                 }
