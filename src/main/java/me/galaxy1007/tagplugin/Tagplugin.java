@@ -34,7 +34,7 @@ public class Tagplugin extends JavaPlugin implements Listener {
     private Player itPlayer;
     private FileConfiguration config;
     private long tagCooldownDuration;
-    private Map<Player, Long> tagCooldowns; // Declare the tagCooldowns variable here
+    private Map<Player, Long> tagCooldowns;
 
 
     @Override
@@ -179,7 +179,7 @@ public class Tagplugin extends JavaPlugin implements Listener {
                 }
                 countdown--;
             }
-        }.runTaskTimer(this, 0, 20); // 20 ticks is een seconde
+        }.runTaskTimer(this, 0, 20); // 20 ticks = 1 second
     }
 
     @EventHandler
