@@ -10,3 +10,11 @@ global_message: "&6{tagger} tagged {tagged}!"
 tag_cooldown: 5
 # Message when the game starts
 game_start_message: "&aThe tag game has started!"
+
+game-settings:
+  speed: 1       # Speed of the players(between 1 and 5)
+  borderSize: 5 # Size of the border (in chunks)
+  duration: 2   # Duration of the game (in minutes)
+
+# Saved Playsigns
+signs: []
