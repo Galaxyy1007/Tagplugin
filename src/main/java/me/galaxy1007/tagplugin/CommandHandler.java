@@ -39,9 +39,6 @@ public class CommandHandler implements CommandExecutor {
         String subCommand = args[0].toLowerCase();
 
         switch (subCommand) {
-            case "start":
-                return handleStartCommand(sender);
-
             case "stop":
                 return handleStopCommand(sender);
 
@@ -63,26 +60,6 @@ public class CommandHandler implements CommandExecutor {
                 sendHelpMenu(sender);
                 return true;
         }
-    }
-
-    private boolean handleStartCommand(CommandSender sender) {
-        if (gameManager.isGameRunning()) {
-            sender.sendMessage(ChatColor.RED + "The tag game is already running!");
-            return true;
-        }
-
-        if (sender.isOp()) {
-            gameManager.startCountdown();
-            sender.sendMessage(ChatColor.GREEN + "Starting the game...");
-            return true;
-        } else if (Bukkit.getOnlinePlayers().size() < 2) {
-            sender.sendMessage(ChatColor.RED + "There must be at least 2 players online to start the tag game.");
-            return true;
-        }
-
-        sender.sendMessage(ChatColor.GREEN + "Starting the game...");
-        gameManager.startCountdown();
-        return true;
     }
 
     private boolean handleStopCommand(CommandSender sender) {
@@ -131,7 +108,6 @@ public class CommandHandler implements CommandExecutor {
 
     private void sendHelpMenu(CommandSender sender) {
         sender.sendMessage(ChatColor.GOLD + "========[ TagGame Help ]========");
-        sender.sendMessage(ChatColor.YELLOW + "/taggame start " + ChatColor.GRAY + "- Start the game");
         sender.sendMessage(ChatColor.YELLOW + "/taggame stop " + ChatColor.GRAY + "- Stop the game");
         sender.sendMessage(ChatColor.YELLOW + "/taggame reload " + ChatColor.GRAY + "- Reload the config");
         sender.sendMessage(ChatColor.YELLOW + "/taggame removesign " + ChatColor.GRAY + "- Remove a playsign");

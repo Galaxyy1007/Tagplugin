@@ -73,10 +73,10 @@ public class GameManager {
         players.clear();
         players.addAll(signManager.getRegisteredPlayers());
 
-//        if (players.size() < 2) {
-//            Bukkit.broadcastMessage(ChatColor.RED + "There are too few players in this game!");
-//            return;
-//        }
+        if (players.size() < 2) {
+            Bukkit.broadcastMessage(ChatColor.RED + "There are too few players in this game!");
+            return;
+        }
 
         isGameRunning = true;
 
@@ -96,6 +96,7 @@ public class GameManager {
             player.sendMessage(ChatColor.YELLOW + "Speed: " + configManager.getSpeed() + "x");
             player.sendMessage(ChatColor.YELLOW + "Border Size: " + configManager.getBorderSize() + " chunks");
             player.sendMessage(ChatColor.YELLOW + "Duration: " + configManager.getDuration() + " minutes");
+            player.playSound(player.getLocation(), "minecraft:item.goat_horn.sound.0", 1.0f, 1.0f);
 
             // Set world border
             setWorldBorder(player);
@@ -121,6 +122,8 @@ public class GameManager {
         // Reset player names in the tab list
         for (Player player : players) {
             player.setPlayerListName(player.getName());
+            player.sendTitle(ChatColor.BOLD + "" + ChatColor.RED + "Game Over", ChatColor.YELLOW + "Thanks for playing", 10, 60, 10);
+            player.playSound(player.getLocation(), "minecraft:entity.ender_dragon.growl", 1.0f, 1.0f);
         }
 
         // Reset registered players
@@ -293,6 +296,7 @@ public class GameManager {
 
     private void setupBossBar(Player player) {
         gameTimerBar.setProgress(1.0);
+        gameTimerBar.setVisible(true);
         gameTimerBar.setTitle("Game Time Remaining: " + configManager.getDuration() + " minutes");
         gameTimerBar.addPlayer(player);
         startBossBarCountdown();

@@ -17,7 +17,7 @@ public class TagGameTabCompleter implements TabCompleter {
             return null;
         }
 
-        List<String> subCommands = Arrays.asList("start", "stop", "reload", "removesign", "resetregisters", "help");
+        List<String> subCommands = Arrays.asList("stop", "reload", "removesign", "resetregisters", "help");
         List<String> completions = new ArrayList<>();
 
         if (args.length == 1) {
